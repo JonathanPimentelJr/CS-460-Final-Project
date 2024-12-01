@@ -14,7 +14,7 @@ const createScene = async () => {
   // Enable physics
   scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), new BABYLON.AmmoJSPlugin());
 
-  // Create a basic camera and light
+  // Create a basic camera
   const camera = new BABYLON.FreeCamera(
     "camera",
     new BABYLON.Vector3(0, 1.6, -5), // Position at player's eye level
@@ -23,74 +23,75 @@ const createScene = async () => {
   camera.setTarget(new BABYLON.Vector3(0, 1.6, 0)); // Look towards the court
   camera.attachControl(canvas, true);
 
-  const light = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0, 1, 0), scene);
+  // Create a hemispheric light
+  const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-  // Load the court model using SceneLoader.Append
-  BABYLON.SceneLoader.Append(
-    "assets/",
-    "court.glb",
-    scene,
-    function (scene) {
-      // Court model loaded successfully
-
-      // Option 1: Assign physics impostor to the court floor mesh
-      const floorMesh = scene.meshes.find(mesh => mesh.name === "Floor" || mesh.name.toLowerCase().includes("floor"));
-      if (floorMesh) {
-        floorMesh.physicsImpostor = new BABYLON.PhysicsImpostor(
-          floorMesh,
-          BABYLON.PhysicsImpostor.BoxImpostor,
-          { mass: 0, restitution: 0.5, friction: 0.5 },
-          scene
-        );
-      } else {
-        console.warn("Floor mesh not found in the court model. Creating an invisible ground plane.");
-
-        // Option 2: Create an invisible ground plane
-        const ground = BABYLON.MeshBuilder.CreateGround(
-          "ground",
-          { width: 30, height: 15 },
-          scene
-        );
-        ground.position.y = 0; // Adjust based on the court's Y position
-        ground.isVisible = true;
-        
-
-        ground.physicsImpostor = new BABYLON.PhysicsImpostor(
-          ground,
-          BABYLON.PhysicsImpostor.BoxImpostor,
-          { mass: 0, restitution: 0.5, friction: 0.5 },
-          scene
-        );
-      }
-    },
-    null,
-    function (scene, message) {
-      console.error("Error loading court model:", message);
-    }
+  // Create an invisible ground plane with physics impostor
+  const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 100, height: 100 }, scene);
+  ground.position.y = 0; // Adjust based on your court model
+  ground.isVisible = false; // Set to true temporarily for testing
+  ground.physicsImpostor = new BABYLON.PhysicsImpostor(
+    ground,
+    BABYLON.PhysicsImpostor.BoxImpostor,
+    { mass: 0, restitution: 0.5, friction: 0.5 },
+    scene
   );
+ 
+
+  // Initialize the physics viewer for debugging
+  const physicsViewer = new BABYLON.PhysicsViewer(scene);
+  physicsViewer.showImpostor(ground.physicsImpostor);
+
+  // Load the court model
+  await BABYLON.SceneLoader.ImportMeshAsync("", "assets/", "court.glb", scene)
+    .then(function (result) {
+      // Optionally, handle loaded meshes
+      // Assign physics impostor to the court floor if necessary
+    })
+    .catch(function (error) {
+      console.error("Error loading court model:", error);
+    });
 
   // Load the basketball model
-  BABYLON.SceneLoader.ImportMesh(
-    "",
-    "assets/",
-    "basketball.glb",
-    scene,
-    function (meshes) {
-      const basketball = meshes[0];
-      basketball.name = 'basketball';
-      basketball.scaling.scaleInPlace(0.24); // Adjust the scale if necessary
-      basketball.position = new BABYLON.Vector3(0, 5, 0);
+  const result = await BABYLON.SceneLoader.ImportMeshAsync("", "assets/", "basketball.glb", scene);
 
-      basketball.physicsImpostor = new BABYLON.PhysicsImpostor(
-        basketball,
-        BABYLON.PhysicsImpostor.SphereImpostor,
-        { mass: 0.624, restitution: 0.6, friction: 0.5 },
-        scene
-      );
-    }
+  // Check if multiple meshes
+  let basketball;
+  if (result.meshes.length > 1) {
+    // Create a parent mesh
+    basketball = new BABYLON.Mesh("basketballParent", scene);
+
+    // Reset transformations on child meshes
+    result.meshes.forEach(mesh => {
+      if (mesh !== basketball) {
+        mesh.parent = basketball;
+        mesh.position = BABYLON.Vector3.Zero();
+        mesh.rotation = BABYLON.Vector3.Zero();
+        mesh.scaling = new BABYLON.Vector3(1, 1, 1);
+      }
+    });
+  } else {
+    basketball = result.meshes[0];
+  }
+
+  basketball.name = 'basketball';
+
+  // Scale and position
+  basketball.scaling.scaleInPlace(0.24);
+  basketball.position = new BABYLON.Vector3(0, 5, 0);
+
+  // Assign physics impostor
+  basketball.physicsImpostor = new BABYLON.PhysicsImpostor(
+    basketball,
+    BABYLON.PhysicsImpostor.SphereImpostor, // Use MeshImpostor if issues persist
+    { mass: 0.624, restitution: 0.6, friction: 0.5 },
+    scene
   );
 
-  // Load the cheering sound (adjust settings as needed)
+  // Visualize the physics impostor
+  physicsViewer.showImpostor(basketball.physicsImpostor);
+
+  // Load the cheering sound
   const cheerSound = new BABYLON.Sound(
     "cheer",
     "assets/sounds/crowd.mp3",
@@ -103,17 +104,20 @@ const createScene = async () => {
   return scene;
 };
 
-// Call the createScene function
-const scenePromise = createScene();
-
-// Register a render loop to repeatedly render the scene
-engine.runRenderLoop(() => {
-  scenePromise.then(scene => {
+// Call the createScene function and wait for it to resolve
+createScene().then(scene => {
+  // Start the render loop
+  engine.runRenderLoop(() => {
     scene.render();
   });
+
+  // Optional: Show the debug layer
+  scene.debugLayer.show();
+}).catch(function (error) {
+  console.error("Error creating the scene:", error);
 });
 
 // Resize the engine when the window is resized
-window.addEventListener('resize', function () {
+window.addEventListener("resize", function () {
   engine.resize();
 });
