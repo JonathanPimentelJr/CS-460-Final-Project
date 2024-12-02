@@ -186,6 +186,9 @@ const createScene = async () => {
   createCrowd(new BABYLON.Vector3(10, 2.5, 8), "assets/Court/textures/crowd.png");
   createCrowd(new BABYLON.Vector3(-10, 2.5, 8), "assets/Court/textures/crowd.png");
 
+
+  createCrowd(new BABYLON.Vector3(0, 2.5, -8), "assets/Court/textures/crowd.png", Math.PI / 2);
+
   BABYLON.SceneLoader.ImportMesh(
     '',
     'assets/basketball.glb',
@@ -217,9 +220,9 @@ const createScene = async () => {
       hoop.name = 'hoop';
       hoop.parent = hoopTransform;
 
-      hoop.scaling.scaleInPlace(.15);
-      hoop.position = new BABYLON.Vector3(15, 5, 7.5);
-      hoopTransform.rotation = new BABYLON.Vector3(0, Math.PI, 0);
+      hoop.scaling.scaleInPlace(.02);
+      hoop.position = new BABYLON.Vector3(0, 3.5, 12.5);
+      hoopTransform.rotation = new BABYLON.Vector3(0, Math.PI / 2, 0);
 
       hoop.physicsImpostor = new BABYLON.PhysicsImpostor(
         hoop,
@@ -244,7 +247,7 @@ const createScene = async () => {
   scoreboard.material = scoreboardMaterial;
 
   */
- 
+
   return scene;
 };
 
