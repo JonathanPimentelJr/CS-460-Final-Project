@@ -164,7 +164,7 @@ const createScene = async () => {
   const ground = BABYLON.MeshBuilder.CreateGround('ground', { width: 30, height: 15 }, scene);
   ground.position.y = 0;
   ground.physicsImpostor = new BABYLON.PhysicsImpostor(
-    ground, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5, friction: 0.5 }, scene
+  ground, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5, friction: 0.5 }, scene
   );
 
   const courtMaterial = new BABYLON.StandardMaterial("courtMaterial", scene);
@@ -188,16 +188,34 @@ const createScene = async () => {
   createCrowd(new BABYLON.Vector3(-10, 2.5, 8), "assets/Court/textures/crowd.png");
  
   // behind hoop
-  const crowd = createCrowd(new BABYLON.Vector3(15.5, 2.5, 2.5), "assets/Court/textures/crowd.png");
-  crowd.rotation.y = Math.PI / 2; 
-  const crowd1 = createCrowd(new BABYLON.Vector3(-15.5, 2.5, 2.5), "assets/Court/textures/crowd.png");
-  crowd1.rotation.y = -Math.PI / 2; 
+  const crowd = createCrowd(new BABYLON.Vector3(15.5, 2.5, 0.25), "assets/Court/textures/crowd.png");
+  crowd.scaling.x = 1.5;
+  crowd.rotation.y = Math.PI / 2;
+
+  const crowd1 = createCrowd(new BABYLON.Vector3(-15.5, 2.5, -0.25), "assets/Court/textures/crowd.png");
+  crowd1.scaling.x = 1.5;
+  crowd1.rotation.y = -Math.PI / 2;
+
+  // right side of the court
+  const crowd2 = createCrowd(new BABYLON.Vector3(0, 2.5, -8), "assets/Court/textures/crowd.png");
+  crowd2.rotation.y = Math.PI;
+
+  const crowd3 = createCrowd(new BABYLON.Vector3(10, 2.5, -8), "assets/Court/textures/crowd.png");
+  crowd3.rotation.y = Math.PI;
+
+  const crowd4 = createCrowd(new BABYLON.Vector3(-10, 2.5, -8), "assets/Court/textures/crowd.png");
+  crowd4.rotation.y = Math.PI;
+
+
 
   
 
 
 
-  /*
+
+
+
+
   BABYLON.SceneLoader.ImportMesh(
     '',
     'assets/basketball.glb',
@@ -216,7 +234,7 @@ const createScene = async () => {
       );
     }
   );
-  */
+
  
   BABYLON.SceneLoader.ImportMesh(
     '',
