@@ -182,13 +182,22 @@ const createScene = async () => {
 
     return crowdPlane;
   };
+  // left crowd
   createCrowd(new BABYLON.Vector3(0, 2.5, 8), "assets/Court/textures/crowd.png");
   createCrowd(new BABYLON.Vector3(10, 2.5, 8), "assets/Court/textures/crowd.png");
   createCrowd(new BABYLON.Vector3(-10, 2.5, 8), "assets/Court/textures/crowd.png");
+ 
+  // behind hoop
+  const crowd = createCrowd(new BABYLON.Vector3(15.5, 2.5, 2.5), "assets/Court/textures/crowd.png");
+  crowd.rotation.y = Math.PI / 2; 
+  const crowd1 = createCrowd(new BABYLON.Vector3(-15.5, 2.5, 2.5), "assets/Court/textures/crowd.png");
+  crowd1.rotation.y = -Math.PI / 2; 
+
+  
 
 
-  createCrowd(new BABYLON.Vector3(0, 2.5, -8), "assets/Court/textures/crowd.png", Math.PI / 2);
 
+  /*
   BABYLON.SceneLoader.ImportMesh(
     '',
     'assets/basketball.glb',
@@ -207,6 +216,32 @@ const createScene = async () => {
       );
     }
   );
+  */
+ 
+  BABYLON.SceneLoader.ImportMesh(
+    '',
+    'assets/',
+    'hoop.glb',
+    scene,
+    function (meshes) {
+      const hoopTransform = new BABYLON.TransformNode("hoopTransform", scene);
+
+      const hoop = meshes[0];
+      hoop.name = 'hoop';
+      hoop.parent = hoopTransform;
+
+      hoop.scaling.scaleInPlace(.02);
+      hoop.position = new BABYLON.Vector3(0, 3.9, 12.5);
+      hoopTransform.rotation = new BABYLON.Vector3(0, Math.PI / 2, 0);
+
+      hoop.physicsImpostor = new BABYLON.PhysicsImpostor(
+        hoop,
+        BABYLON.PhysicsImpostor.MeshImpostor,
+        { mass: 0, restitution: 0.5, friction: 0.5 },
+        scene
+      );
+    }
+  );
 
   BABYLON.SceneLoader.ImportMesh(
     '',
@@ -221,8 +256,8 @@ const createScene = async () => {
       hoop.parent = hoopTransform;
 
       hoop.scaling.scaleInPlace(.02);
-      hoop.position = new BABYLON.Vector3(0, 3.5, 12.5);
-      hoopTransform.rotation = new BABYLON.Vector3(0, Math.PI / 2, 0);
+      hoop.position = new BABYLON.Vector3(0, 3.9, 12.5);
+      hoopTransform.rotation.y = -Math.PI / 2;
 
       hoop.physicsImpostor = new BABYLON.PhysicsImpostor(
         hoop,
