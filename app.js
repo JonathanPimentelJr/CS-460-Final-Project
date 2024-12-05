@@ -191,7 +191,7 @@ const createScene = async () => {
   hoop2.parent = hoopTransform2;
 
   hoop2.scaling.scaleInPlace(0.02);
-  hoop2.position = new BABYLON.Vector3(0, 3.9, -12.5); // Adjusted position for the opposite end
+  hoop2.position = new BABYLON.Vector3(0, 3.9, 12.5); // Adjusted position for the opposite end
   hoopTransform2.rotation = new BABYLON.Vector3(0, -Math.PI / 2, 0);
 
   hoop2.physicsImpostor = new BABYLON.PhysicsImpostor(
@@ -204,7 +204,11 @@ const createScene = async () => {
   // Variable to track if the basketball is being held
   let isHoldingBall = false;
 
-    // Handle controller input for grabbing and movement
+  // Variables to store movement and rotation input
+  let movementVector = new BABYLON.Vector3();
+  let rotationInput = 0;
+
+  // Handle controller input for grabbing and movement
   xr.input.onControllerAddedObservable.add((xrController) => {
     console.log('Controller added:', xrController);
 
@@ -220,15 +224,10 @@ const createScene = async () => {
       // Handle movement with left controller
       if (handedness === 'left') {
         // Movement (left thumbstick)
-        const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') ||
-                                    motionController.getComponent('thumbstick') ||
-                                    motionController.getComponent('touchpad');
+        const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') || motionController.getComponent('thumbstick') || motionController.getComponent('touchpad');
 
         if (thumbstickComponent) {
           console.log('Left thumbstick component found:', thumbstickComponent);
-
-          // Create a vector to store movement direction
-          const movementVector = new BABYLON.Vector3();
 
           // Observe changes in thumbstick axis values
           thumbstickComponent.onAxisValueChangedObservable.add(() => {
@@ -240,26 +239,11 @@ const createScene = async () => {
             movementVector.z = yValue;
           });
 
-          // Update movement on each frame
-          scene.onBeforeRenderObservable.add(() => {
-            if (!isHoldingBall && (movementVector.x !== 0 || movementVector.z !== 0)) {
-              const camera = xr.baseExperience.camera;
-              const forward = new BABYLON.Vector3(
-                Math.sin(camera.rotation.y),
-                0,
-                Math.cos(camera.rotation.y)
-              );
-              const right = new BABYLON.Vector3(
-                Math.sin(camera.rotation.y + Math.PI / 2),
-                0,
-                Math.cos(camera.rotation.y + Math.PI / 2)
-              );
-
-              const move = right.scale(movementVector.x).add(forward.scale(movementVector.z));
-              move.normalize();
-
-              const speed = 0.05; // Adjust speed as needed
-              camera.position.addInPlace(move.scale(speed));
+          // Reset movement vector when thumbstick is released
+          thumbstickComponent.onButtonStateChangedObservable.add(() => {
+            if (!thumbstickComponent.pressed) {
+              movementVector.x = 0;
+              movementVector.z = 0;
             }
           });
         } else {
@@ -279,10 +263,15 @@ const createScene = async () => {
           thumbstickComponent.onAxisValueChangedObservable.add(() => {
             const xValue = thumbstickComponent.axes.x;
 
-            // Apply rotation based on x-axis of the thumbstick
-            const rotationSpeed = 0.02; // Adjust rotation speed as needed
-            const camera = xr.baseExperience.camera;
-            camera.rotation.y -= xValue * rotationSpeed;
+            // Store the xValue for use in the render loop
+            rotationInput = xValue;
+          });
+
+          // Reset rotation input when thumbstick is released
+          thumbstickComponent.onButtonStateChangedObservable.add(() => {
+            if (!thumbstickComponent.pressed) {
+              rotationInput = 0;
+            }
           });
         } else {
           console.warn('Thumbstick component not found on right controller for rotation');
@@ -291,7 +280,8 @@ const createScene = async () => {
 
       // Handle grabbing with trigger (applies to both controllers)
       const triggerComponent =
-        motionController.getComponent('xr-standard-trigger') || motionController.getComponent('trigger');
+        motionController.getComponent('xr-standard-trigger') ||
+        motionController.getComponent('trigger');
 
       if (triggerComponent) {
         console.log('Trigger component found:', triggerComponent);
@@ -352,6 +342,50 @@ const createScene = async () => {
       }
     });
   });
+
+  // Update movement and rotation on each frame
+  scene.onBeforeRenderObservable.add(() => {
+    const camera = xr.baseExperience.camera;
+
+    // Apply movement
+    if (!isHoldingBall && (movementVector.x !== 0 || movementVector.z !== 0)) {
+      // Calculate direction vectors based on camera's orientation
+      const forward = new BABYLON.Vector3(
+        Math.sin(camera.rotation.y),
+        0,
+        Math.cos(camera.rotation.y)
+      );
+      const right = new BABYLON.Vector3(
+        -forward.z,
+        0,
+        forward.x
+      );
+
+      // Calculate movement direction
+      const moveDirection = forward.scale(movementVector.z).add(right.scale(movementVector.x));
+
+      // Normalize the movement vector
+      moveDirection.normalize();
+
+      // Set movement speed
+      const speed = 0.05; // Adjust speed as needed
+
+      // Update camera position
+      camera.position.addInPlace(moveDirection.scale(speed));
+    }
+
+    // Apply rotation
+    if (rotationInput !== 0) {
+      const rotationSpeed = 0.05; // Adjust rotation speed as needed
+
+      // Apply deadzone to prevent unwanted rotation
+      const deadzone = 0.1;
+      if (Math.abs(rotationInput) > deadzone) {
+        camera.rotation.y -= rotationInput * rotationSpeed;
+      }
+    }
+  });
+
   // Enable collisions
   scene.collisionsEnabled = true;
   xr.baseExperience.camera.checkCollisions = true;
@@ -361,6 +395,11 @@ const createScene = async () => {
   ground.checkCollisions = true;
   hoop1.checkCollisions = true;
   hoop2.checkCollisions = true;
+  crowdLeft.checkCollisions = true;
+  crowdRight.checkCollisions = true;
+  crowdBack1.checkCollisions = true;
+  crowdBack2.checkCollisions = true;
+  crowdBack3.checkCollisions = true;
   // Add collision checks for other meshes as needed
 
   // Play cheering sound
