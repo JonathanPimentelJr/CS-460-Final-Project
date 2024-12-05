@@ -211,48 +211,87 @@ const createScene = async () => {
     xrController.onMotionControllerInitObservable.add((motionController) => {
       console.log('Motion controller initialized:', motionController);
 
+      // Determine the handedness of the controller
+      const handedness = xrController.inputSource.handedness; // 'left' or 'right'
+
       // Log all components
-      console.log('Available components:', motionController.components);
+      console.log(`Components for ${handedness} controller:`, motionController.components);
 
-      // Movement (thumbstick)
-      const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') || motionController.getComponent('thumbstick');
+      // Handle movement with left controller
+      if (handedness === 'left') {
+        // Movement (left thumbstick)
+        const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') ||
+                                    motionController.getComponent('thumbstick') ||
+                                    motionController.getComponent('touchpad');
 
-      if (thumbstickComponent) {
-        console.log('Thumbstick component found:', thumbstickComponent);
+        if (thumbstickComponent) {
+          console.log('Left thumbstick component found:', thumbstickComponent);
 
-        // Create a vector to store movement direction
-        const movementVector = new BABYLON.Vector3();
+          // Create a vector to store movement direction
+          const movementVector = new BABYLON.Vector3();
 
-        // Observe changes in thumbstick axis values
-        thumbstickComponent.onAxisValueChangedObservable.add(() => {
-          const xValue = thumbstickComponent.axes.x;
-          const yValue = thumbstickComponent.axes.y;
+          // Observe changes in thumbstick axis values
+          thumbstickComponent.onAxisValueChangedObservable.add(() => {
+            const xValue = thumbstickComponent.axes.x;
+            const yValue = thumbstickComponent.axes.y;
 
-          // Update movement vector
-          movementVector.x = xValue;
-          movementVector.z = yValue;
+            // Update movement vector
+            movementVector.x = xValue;
+            movementVector.z = yValue;
+          });
 
           // Update movement on each frame
-          if (!isHoldingBall) {
-            const camera = xr.baseExperience.camera;
-            const forward = camera.getForwardRay().direction;
-            const right = BABYLON.Vector3.Cross(BABYLON.Axis.Y, forward);
+          scene.onBeforeRenderObservable.add(() => {
+            if (!isHoldingBall && (movementVector.x !== 0 || movementVector.z !== 0)) {
+              const camera = xr.baseExperience.camera;
+              const forward = new BABYLON.Vector3(
+                Math.sin(camera.rotation.y),
+                0,
+                Math.cos(camera.rotation.y)
+              );
+              const right = new BABYLON.Vector3(
+                Math.sin(camera.rotation.y + Math.PI / 2),
+                0,
+                Math.cos(camera.rotation.y + Math.PI / 2)
+              );
 
-            const move = right.scale(movementVector.x).add(forward.scale(movementVector.z));
-            move.normalize();
+              const move = right.scale(movementVector.x).add(forward.scale(movementVector.z));
+              move.normalize();
 
-            const speed = 0.05; // Adjust speed as needed
-            camera.position.addInPlace(move.scale(speed));
-          }
-        });
-      } else {
-        console.warn('Thumbstick component not found on controller for movement');
+              const speed = 0.05; // Adjust speed as needed
+              camera.position.addInPlace(move.scale(speed));
+            }
+          });
+        } else {
+          console.warn('Thumbstick component not found on left controller for movement');
+        }
       }
 
-      // Handle grabbing with trigger
+      // Handle rotation with right controller
+      if (handedness === 'right') {
+        // Rotation (right thumbstick)
+        const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') || motionController.getComponent('thumbstick') || motionController.getComponent('touchpad');
+
+        if (thumbstickComponent) {
+          console.log('Right thumbstick component found:', thumbstickComponent);
+
+          // Observe changes in thumbstick axis values
+          thumbstickComponent.onAxisValueChangedObservable.add(() => {
+            const xValue = thumbstickComponent.axes.x;
+
+            // Apply rotation based on x-axis of the thumbstick
+            const rotationSpeed = 0.02; // Adjust rotation speed as needed
+            const camera = xr.baseExperience.camera;
+            camera.rotation.y -= xValue * rotationSpeed;
+          });
+        } else {
+          console.warn('Thumbstick component not found on right controller for rotation');
+        }
+      }
+
+      // Handle grabbing with trigger (applies to both controllers)
       const triggerComponent =
-        motionController.getComponent('xr-standard-trigger') ||
-        motionController.getComponent('trigger');
+        motionController.getComponent('xr-standard-trigger') || motionController.getComponent('trigger');
 
       if (triggerComponent) {
         console.log('Trigger component found:', triggerComponent);
