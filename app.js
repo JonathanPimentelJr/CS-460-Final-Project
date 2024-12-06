@@ -72,8 +72,12 @@ const createScene = async () => {
 
   basketball = result.meshes[0];
   basketball.name = 'basketball';
-  basketball.scaling.scaleInPlace(0.24);
-  basketball.position = new BABYLON.Vector3(0, 1.6, -1);
+  basketball.scaling.scaleInPlace(0.9);
+  basketball.position = new BABYLON.Vector3(0, 3, -1);
+
+
+  
+
 
   basketball.physicsImpostor = new BABYLON.PhysicsImpostor(
     basketball,
@@ -203,6 +207,39 @@ const createScene = async () => {
 
   // Variable to track if the basketball is being held
   let isHoldingBall = false;
+  function handleKeyDown(event) {
+  switch (event.key) {
+    case "w":
+    case "W":
+      verticalDistance -= MOVE_DISTANCE;
+      break;
+    case "s":
+    case "S":
+      verticalDistance += MOVE_DISTANCE;
+      break;
+    case "a":
+    case "A":
+      transverseDistance += MOVE_DISTANCE;
+      break;
+    case "d":
+    case "D":
+      transverseDistance -= MOVE_DISTANCE;
+      break;
+    case "ArrowUp":
+      axialDistance += MOVE_DISTANCE;
+      break;
+    case "ArrowDown":
+      axialDistance -= MOVE_DISTANCE;
+      break;
+    case "r":
+    case "R":
+      transverseDistance = axialDistance = verticalDistance = 0;
+      mouseYaw = mousePitch = 0;
+      break;
+    default:
+      break;
+  }
+}
 
   // Variables to store movement and rotation input
   let movementVector = new BABYLON.Vector3();
@@ -408,7 +445,7 @@ const createScene = async () => {
     'assets/sounds/crowd.mp3',
     scene,
     null,
-    { loop: true, autoplay: true }
+    { loop: false, autoplay: false }
   );
 
   // Scoreboard (if needed)
