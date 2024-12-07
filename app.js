@@ -72,8 +72,8 @@ const createScene = async () => {
 
   basketball = result.meshes[0];
   basketball.name = 'basketball';
-  basketball.scaling.scaleInPlace(0.9);
-  basketball.position = new BABYLON.Vector3(0, 3, -1);
+  basketball.scaling.scaleInPlace(0.6);
+  basketball.position = new BABYLON.Vector3(0, 2, 1);
 
 
   
@@ -82,7 +82,7 @@ const createScene = async () => {
   basketball.physicsImpostor = new BABYLON.PhysicsImpostor(
     basketball,
     BABYLON.PhysicsImpostor.SphereImpostor,
-    { mass: 0.624, restitution: 0.6, friction: 0.5 },
+    { mass: 0, restitution: 0.6, friction: 0.5 },
     scene
   );
   // Make the basketball grabbable
@@ -163,6 +163,15 @@ const createScene = async () => {
     scene
   );
 
+  // Iterate through all loaded meshes
+  hoopResult1.meshes.forEach(mesh => {
+  // Create and assign a new material
+  const hoopMaterial = new BABYLON.StandardMaterial("hoopMaterial", scene);
+  hoopMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red
+  hoopMaterial.specularColor = new BABYLON.Color3(0, 0, 0); // Prevent shininess
+  mesh.material = hoopMaterial;
+  });
+
   const hoopTransform1 = new BABYLON.TransformNode('hoopTransform1', scene);
 
   const hoop1 = hoopResult1.meshes[0];
@@ -179,6 +188,7 @@ const createScene = async () => {
     { mass: 0, restitution: 0.5, friction: 0.5 },
     scene
   );
+  
 
   // Second hoop
   const hoopResult2 = await BABYLON.SceneLoader.ImportMeshAsync(
