@@ -283,14 +283,14 @@ const createScene = async () => {
 
             // Update movement vector
             movementVector.x = xValue;
-            movementVector.z = yValue;
+            movementVector.y = yValue;
           });
 
           // Reset movement vector when thumbstick is released
           thumbstickComponent.onButtonStateChangedObservable.add(() => {
             if (!thumbstickComponent.pressed) {
               movementVector.x = 0;
-              movementVector.z = 0;
+              movementVector.y = 0;
             }
           });
         } else {
@@ -442,13 +442,8 @@ const createScene = async () => {
   ground.checkCollisions = true;
   hoop1.checkCollisions = true;
   hoop2.checkCollisions = true;
-  crowdLeft.checkCollisions = true;
-  crowdRight.checkCollisions = true;
-  crowdBack1.checkCollisions = true;
-  crowdBack2.checkCollisions = true;
-  crowdBack3.checkCollisions = true;
-  // Add collision checks for other meshes as needed
-
+  
+  
   // Play cheering sound
   const cheerSound = new BABYLON.Sound(
     'cheer',
