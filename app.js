@@ -103,7 +103,7 @@ const createScene = async () => {
 
   hoopResult1.meshes.forEach(mesh => {
     const hoopMaterial = new BABYLON.StandardMaterial("hoopMaterial", scene);
-    hoopMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0);
+    hoopMaterial.diffuseColor = new BABYLON.Color3(0, 0, 0);
     hoopMaterial.specularColor = new BABYLON.Color3(0, 0, 0);
     mesh.material = hoopMaterial;
   });
@@ -164,13 +164,15 @@ const createScene = async () => {
           thumbstickComponent.onAxisValueChangedObservable.add(() => {
             const yValue = thumbstickComponent.axes.y;
             // Only use yValue for forward/back movement
-            movementVector.x = 0;       // No lateral movement
-            movementVector.z = yValue;  // Up/down on stick controls forward/back
+            movementVector.x = xValue;       
+            movementVector.y = yValue;  // Up/down on stick controls forward/back
+            movementVector.z = zValue;
           });
 
           thumbstickComponent.onButtonStateChangedObservable.add(() => {
             if (!thumbstickComponent.pressed) {
               movementVector.x = 0;
+              movementVector.y = 0;
               movementVector.z = 0;
             }
           });
