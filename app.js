@@ -8,11 +8,11 @@ const engine = new BABYLON.Engine(canvas, true);
 const createScene = async () => {
   const scene = new BABYLON.Scene(engine);
 
-  // Wait for Ammo.js to be ready and get the module instance
+  // Wait for Ammo.js to be ready
   await Ammo();
   console.log("Ammo.js loaded");
 
-  // Enable physics with the Ammo.js plugin, passing the ammo instance
+  // Enable physics with the Ammo.js plugin
   scene.enablePhysics(
     new BABYLON.Vector3(0, -9.81, 0),
     new BABYLON.AmmoJSPlugin(true)
@@ -45,23 +45,21 @@ const createScene = async () => {
   courtMaterial.diffuseTexture = new BABYLON.Texture('assets/Court/textures/court.png', scene);
   ground.material = courtMaterial;
 
-  // Instead of loading a basketball model, create a sphere to represent the ball
-  const basketball = BABYLON.MeshBuilder.CreateSphere("basketball", { diameter: 1 }, scene);
-  // Scale the sphere to match the previous ball size
-  basketball.scaling.scaleInPlace(0.6);
-  // Position it as previously done
-  basketball.position = new BABYLON.Vector3(0, 2, 1);
+  // Create a sphere to replace the basketball model
+  const sphere = BABYLON.MeshBuilder.CreateSphere("sphere", { diameter: 1 }, scene);
+  sphere.scaling.scaleInPlace(0.6);
+  sphere.position = new BABYLON.Vector3(0, 2, 1);
 
-  // Assign physics impostor to the sphere with similar properties as the basketball
-  basketball.physicsImpostor = new BABYLON.PhysicsImpostor(
-    basketball,
+  sphere.physicsImpostor = new BABYLON.PhysicsImpostor(
+    sphere,
     BABYLON.PhysicsImpostor.SphereImpostor,
     { mass: 1, restitution: 0.6, friction: 0.5 },
     scene
   );
 
-  // Make the sphere grabbable, same as the basketball was
-  basketball.isPickable = true;
+  // Make the sphere grabbable
+  sphere.isPickable = true;
+  sphere.checkCollisions = true;
 
   // Create crowd function
   const createCrowd = (position, texturePath) => {
@@ -101,13 +99,12 @@ const createScene = async () => {
   crowdBack3.rotation.y = Math.PI;
 
   // Load the hoop models
-  // First hoop
   const hoopResult1 = await BABYLON.SceneLoader.ImportMeshAsync('', 'assets/', 'hoop.glb', scene);
 
   hoopResult1.meshes.forEach(mesh => {
     const hoopMaterial = new BABYLON.StandardMaterial("hoopMaterial", scene);
-    hoopMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red
-    hoopMaterial.specularColor = new BABYLON.Color3(0, 0, 0); 
+    hoopMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0);
+    hoopMaterial.specularColor = new BABYLON.Color3(0, 0, 0);
     mesh.material = hoopMaterial;
   });
 
@@ -125,7 +122,6 @@ const createScene = async () => {
     scene
   );
 
-  // Second hoop
   const hoopResult2 = await BABYLON.SceneLoader.ImportMeshAsync('', 'assets/', 'hoop.glb', scene);
   const hoopTransform2 = new BABYLON.TransformNode('hoopTransform2', scene);
   const hoop2 = hoopResult2.meshes[0];
@@ -154,21 +150,22 @@ const createScene = async () => {
       console.log('Motion controller initialized:', motionController);
 
       const handedness = xrController.inputSource.handedness;
-
       console.log(`Components for ${handedness} controller:`, motionController.components);
 
-      // Movement with left controller
+      // Movement with left controller (up/down moves forward/back)
       if (handedness === 'left') {
-        const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') || motionController.getComponent('thumbstick') || motionController.getComponent('touchpad');
+        const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') ||
+                                    motionController.getComponent('thumbstick') ||
+                                    motionController.getComponent('touchpad');
 
         if (thumbstickComponent) {
           console.log('Left thumbstick component found:', thumbstickComponent);
 
           thumbstickComponent.onAxisValueChangedObservable.add(() => {
-            const xValue = thumbstickComponent.axes.x;
             const yValue = thumbstickComponent.axes.y;
-            movementVector.x = xValue;
-            movementVector.z = yValue;
+            // Only use yValue for forward/back movement
+            movementVector.x = 0;       // No lateral movement
+            movementVector.z = yValue;  // Up/down on stick controls forward/back
           });
 
           thumbstickComponent.onButtonStateChangedObservable.add(() => {
@@ -182,18 +179,18 @@ const createScene = async () => {
         }
       }
 
-      // Rotation with right controller
+      // Rotation with right controller remains the same (using x-axis)
       if (handedness === 'right') {
-        const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') || motionController.getComponent('thumbstick') || motionController.getComponent('touchpad');
+        const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') ||
+                                    motionController.getComponent('thumbstick') ||
+                                    motionController.getComponent('touchpad');
 
         if (thumbstickComponent) {
           console.log('Right thumbstick component found:', thumbstickComponent);
-
           thumbstickComponent.onAxisValueChangedObservable.add(() => {
             const xValue = thumbstickComponent.axes.x;
             rotationInput = xValue;
           });
-
           thumbstickComponent.onButtonStateChangedObservable.add(() => {
             if (!thumbstickComponent.pressed) {
               rotationInput = 0;
@@ -205,9 +202,8 @@ const createScene = async () => {
       }
 
       // Grabbing with trigger (applies to both controllers)
-      const triggerComponent =
-        motionController.getComponent('xr-standard-trigger') ||
-        motionController.getComponent('trigger');
+      const triggerComponent = motionController.getComponent('xr-standard-trigger') ||
+                               motionController.getComponent('trigger');
 
       if (triggerComponent) {
         console.log('Trigger component found:', triggerComponent);
@@ -219,7 +215,7 @@ const createScene = async () => {
             if (triggerComponent.pressed) {
               console.log('Trigger pressed');
 
-              // Trigger pressed - attempt to pick up the sphere (ball)
+              // Attempt to pick up the sphere
               const pickInfo = scene.pickWithRay(
                 new BABYLON.Ray(
                   xrController.pointer.position,
@@ -229,10 +225,10 @@ const createScene = async () => {
                 )
               );
 
-              if (pickInfo.hit && pickInfo.pickedMesh === basketball) {
-                // Attach the sphere to controller
-                basketball.setParent(xrController.grip);
-                basketball.physicsImpostor.sleep();
+              if (pickInfo.hit && pickInfo.pickedMesh === sphere) {
+                // Attach sphere to controller
+                sphere.setParent(xrController.grip);
+                sphere.physicsImpostor.sleep();
                 isHoldingBall = true;
                 console.log('Sphere picked up');
               }
@@ -240,25 +236,18 @@ const createScene = async () => {
               console.log('Trigger released');
 
               // Trigger released - drop the sphere
-              if (basketball.parent === xrController.grip) {
-                basketball.setParent(null);
-                basketball.physicsImpostor.wakeUp();
+              if (sphere.parent === xrController.grip) {
+                sphere.setParent(null);
+                sphere.physicsImpostor.wakeUp();
                 isHoldingBall = false;
 
-                // Apply velocity based on controller's movement
                 const currentPos = xrController.grip.position.clone();
                 const lastPos = xrController.grip['lastPosition'] || currentPos;
                 xrController.grip['lastPosition'] = currentPos.clone();
 
                 const controllerVelocity = currentPos.subtract(lastPos);
-                basketball.physicsImpostor.setLinearVelocity(
-                  controllerVelocity.scale(60)
-                ); // Adjust the scale for desired throw speed
-
-                console.log(
-                  'Sphere thrown with velocity:',
-                  controllerVelocity.scale(60)
-                );
+                sphere.physicsImpostor.setLinearVelocity(controllerVelocity.scale(60));
+                console.log('Sphere thrown with velocity:', controllerVelocity.scale(60));
               }
             }
           }
@@ -273,19 +262,22 @@ const createScene = async () => {
   scene.onBeforeRenderObservable.add(() => {
     const camera = xr.baseExperience.camera;
 
-    if (!isHoldingBall && (movementVector.x !== 0 || movementVector.z !== 0)) {
+    // Apply movement (forward/back) from left thumbstick yValue
+    if (!isHoldingBall && (movementVector.z !== 0)) {
       const forward = new BABYLON.Vector3(Math.sin(camera.rotation.y), 0, Math.cos(camera.rotation.y));
       const right = new BABYLON.Vector3(-forward.z, 0, forward.x);
 
-      const moveDirection = forward.scale(movementVector.z).add(right.scale(movementVector.x));
+      // Since x=0, we only move forward/back along forward direction
+      const moveDirection = forward.scale(movementVector.z);
       moveDirection.normalize();
 
-      const speed = 0.05; // Adjust speed as needed
+      const speed = 0.05;
       camera.position.addInPlace(moveDirection.scale(speed));
     }
 
+    // Apply rotation from right thumbstick x-axis
     if (rotationInput !== 0) {
-      const rotationSpeed = 0.05; // Adjust rotation speed as needed
+      const rotationSpeed = 0.05;
       const deadzone = 0.1;
       if (Math.abs(rotationInput) > deadzone) {
         camera.rotation.y -= rotationInput * rotationSpeed;
@@ -300,7 +292,6 @@ const createScene = async () => {
 
   // Set collisions for ground and other meshes
   ground.checkCollisions = true;
-  // Hoops already have mass:0 impostors, no changes needed
 
   return scene;
 };
