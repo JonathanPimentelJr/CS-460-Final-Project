@@ -8,11 +8,10 @@ const engine = new BABYLON.Engine(canvas, true);
 const createScene = async () => {
   const scene = new BABYLON.Scene(engine);
 
-  // Wait for Ammo.js to be ready
+  // Wait for Ammo.js
   await Ammo();
   console.log("Ammo.js loaded");
 
-  // Enable physics with the Ammo.js plugin
   scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), new BABYLON.AmmoJSPlugin(true));
   console.log("Physics enabled with plugin:", scene.getPhysicsEngine().getPhysicsPluginName());
 
@@ -42,20 +41,18 @@ const createScene = async () => {
   courtMaterial.diffuseTexture = new BABYLON.Texture('assets/Court/textures/court.png', scene);
   ground.material = courtMaterial;
 
-  // Create a sphere to replace the basketball model
+  // Create a sphere to serve as the ball
   const sphere = BABYLON.MeshBuilder.CreateSphere("sphere", { diameter: 1 }, scene);
   sphere.scaling.scaleInPlace(0.6);
-  sphere.position = new BABYLON.Vector3(0, 2, 1);
-
+  // Place it in front of the camera area so it's easily reachable
+  sphere.position = new BABYLON.Vector3(0, 2, 0);
   sphere.physicsImpostor = new BABYLON.PhysicsImpostor(
     sphere,
     BABYLON.PhysicsImpostor.SphereImpostor,
     { mass: 1, restitution: 0.6, friction: 0.5 },
     scene
   );
-
-  // Make the sphere grabbable
-  sphere.isPickable = true;
+  sphere.isPickable = true;   // Make it pickable for grabbing
   sphere.checkCollisions = true;
 
   // Create crowd function
@@ -95,7 +92,7 @@ const createScene = async () => {
   const crowdBack3 = createCrowd(new BABYLON.Vector3(-10, 2.5, -7.5), 'assets/Court/textures/crowd.png');
   crowdBack3.rotation.y = Math.PI;
 
-  // Load hoops
+  // Load the hoops
   const hoopResult1 = await BABYLON.SceneLoader.ImportMeshAsync('', 'assets/', 'hoop.glb', scene);
   hoopResult1.meshes.forEach(mesh => {
     const hoopMaterial = new BABYLON.StandardMaterial("hoopMaterial", scene);
@@ -134,7 +131,7 @@ const createScene = async () => {
   );
 
   let isHoldingBall = false;
-  let movementVector = new BABYLON.Vector3();
+  let movementVector = new BABYLON.Vector3(); // x for left/right, z for forward/back
   let rotationInput = 0;
 
   // Handle controller input for grabbing and movement
@@ -143,11 +140,11 @@ const createScene = async () => {
 
     xrController.onMotionControllerInitObservable.add((motionController) => {
       console.log('Motion controller initialized:', motionController);
-
       const handedness = xrController.inputSource.handedness;
       console.log(`Components for ${handedness} controller:`, motionController.components);
 
-      // Movement with left controller: up/down = forward/back, left/right = strafe
+      // Movement with left controller: full directional
+      // Up = forward(-Z), Down = backward(+Z), Left = (-X), Right=(+X)
       if (handedness === 'left') {
         const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') ||
                                     motionController.getComponent('thumbstick') ||
@@ -159,9 +156,10 @@ const createScene = async () => {
           thumbstickComponent.onAxisValueChangedObservable.add(() => {
             const xValue = thumbstickComponent.axes.x; // left/right
             const yValue = thumbstickComponent.axes.y; // up/down
-            // Apply both for full movement
-            movementVector.x = xValue;  // left/right movement
-            movementVector.z = yValue;  // forward/back movement
+            // Up on yValue (negative) means forward(-Z), Down(positive y) means back(+Z)
+            // Left negative x, Right positive x
+            movementVector.x = xValue;   // strafe left/right
+            movementVector.z = yValue;   // forward/back
           });
 
           thumbstickComponent.onButtonStateChangedObservable.add(() => {
@@ -183,7 +181,6 @@ const createScene = async () => {
 
         if (thumbstickComponent) {
           console.log('Right thumbstick component found:', thumbstickComponent);
-
           thumbstickComponent.onAxisValueChangedObservable.add(() => {
             const xValue = thumbstickComponent.axes.x;
             rotationInput = xValue;
@@ -199,7 +196,7 @@ const createScene = async () => {
         }
       }
 
-      // Grabbing with trigger (applies to both controllers)
+      // Grabbing with trigger
       const triggerComponent = motionController.getComponent('xr-standard-trigger') ||
                                motionController.getComponent('trigger');
 
@@ -223,12 +220,16 @@ const createScene = async () => {
                 )
               );
 
+              console.log("PickInfo:", pickInfo);
+
               if (pickInfo.hit && pickInfo.pickedMesh === sphere) {
                 // Attach sphere to controller
                 sphere.setParent(xrController.grip);
                 sphere.physicsImpostor.sleep();
                 isHoldingBall = true;
                 console.log('Sphere picked up');
+              } else {
+                console.log("Sphere not picked. Maybe not in front?");
               }
             } else {
               console.log('Trigger released');
@@ -260,19 +261,14 @@ const createScene = async () => {
   scene.onBeforeRenderObservable.add(() => {
     const camera = xr.baseExperience.camera;
 
-    // Movement:
-    // movementVector.x controls left/right strafe
-    // movementVector.z controls forward/back
-    // Based on camera orientation
+    
+    // movementVector.x = left/right, movementVector.z = forward/back
+    // Forward(-Z): negative z, Back(+Z): positive z, Left(-X), Right(+X)
+    const speed = 0.05;
     if (!isHoldingBall && (movementVector.x !== 0 || movementVector.z !== 0)) {
-      const forward = new BABYLON.Vector3(Math.sin(camera.rotation.y), 0, Math.cos(camera.rotation.y));
-      const right = new BABYLON.Vector3(-forward.z, 0, forward.x);
-
-      const moveDirection = forward.scale(movementVector.z).add(right.scale(movementVector.x));
-      moveDirection.normalize();
-
-      const speed = 0.05; // Movement speed
-      camera.position.addInPlace(moveDirection.scale(speed));
+      // Move directly in world space:
+      camera.position.x += movementVector.x * speed; // left/right moves on X
+      camera.position.z += movementVector.z * speed; // up/down moves on Z
     }
 
     // Rotation from right thumbstick
@@ -299,7 +295,7 @@ const createScene = async () => {
 const scenePromise = createScene();
 
 engine.runRenderLoop(() => {
-  scenePromise.then(scene => {
+  scenePromise.then((scene) => {
     scene.render();
   });
 });
