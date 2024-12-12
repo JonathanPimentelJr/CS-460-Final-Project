@@ -13,10 +13,7 @@ const createScene = async () => {
   console.log("Ammo.js loaded");
 
   // Enable physics with the Ammo.js plugin
-  scene.enablePhysics(
-    new BABYLON.Vector3(0, -9.81, 0),
-    new BABYLON.AmmoJSPlugin(true)
-  );
+  scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), new BABYLON.AmmoJSPlugin(true));
   console.log("Physics enabled with plugin:", scene.getPhysicsEngine().getPhysicsPluginName());
 
   // Initialize WebXR Default Experience
@@ -98,9 +95,8 @@ const createScene = async () => {
   const crowdBack3 = createCrowd(new BABYLON.Vector3(-10, 2.5, -7.5), 'assets/Court/textures/crowd.png');
   crowdBack3.rotation.y = Math.PI;
 
-  // Load the hoop models
+  // Load hoops
   const hoopResult1 = await BABYLON.SceneLoader.ImportMeshAsync('', 'assets/', 'hoop.glb', scene);
-
   hoopResult1.meshes.forEach(mesh => {
     const hoopMaterial = new BABYLON.StandardMaterial("hoopMaterial", scene);
     hoopMaterial.diffuseColor = new BABYLON.Color3(0, 0, 0);
@@ -130,7 +126,6 @@ const createScene = async () => {
   hoop2.scaling.scaleInPlace(0.02);
   hoop2.position = new BABYLON.Vector3(0, 3.9, 12.5);
   hoopTransform2.rotation = new BABYLON.Vector3(0, -Math.PI / 2, 0);
-
   hoop2.physicsImpostor = new BABYLON.PhysicsImpostor(
     hoop2,
     BABYLON.PhysicsImpostor.MeshImpostor,
@@ -152,7 +147,7 @@ const createScene = async () => {
       const handedness = xrController.inputSource.handedness;
       console.log(`Components for ${handedness} controller:`, motionController.components);
 
-      // Movement with left controller (up/down moves forward/back)
+      // Movement with left controller: up/down = forward/back, left/right = strafe
       if (handedness === 'left') {
         const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') ||
                                     motionController.getComponent('thumbstick') ||
@@ -162,17 +157,16 @@ const createScene = async () => {
           console.log('Left thumbstick component found:', thumbstickComponent);
 
           thumbstickComponent.onAxisValueChangedObservable.add(() => {
-            const yValue = thumbstickComponent.axes.y;
-            // Only use yValue for forward/back movement
-            movementVector.x = xValue;       
-            movementVector.y = yValue;  // Up/down on stick controls forward/back
-            movementVector.z = zValue;
+            const xValue = thumbstickComponent.axes.x; // left/right
+            const yValue = thumbstickComponent.axes.y; // up/down
+            // Apply both for full movement
+            movementVector.x = xValue;  // left/right movement
+            movementVector.z = yValue;  // forward/back movement
           });
 
           thumbstickComponent.onButtonStateChangedObservable.add(() => {
             if (!thumbstickComponent.pressed) {
               movementVector.x = 0;
-              movementVector.y = 0;
               movementVector.z = 0;
             }
           });
@@ -181,7 +175,7 @@ const createScene = async () => {
         }
       }
 
-      // Rotation with right controller remains the same (using x-axis)
+      // Rotation with right controller (left/right on x-axis)
       if (handedness === 'right') {
         const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') ||
                                     motionController.getComponent('thumbstick') ||
@@ -189,10 +183,12 @@ const createScene = async () => {
 
         if (thumbstickComponent) {
           console.log('Right thumbstick component found:', thumbstickComponent);
+
           thumbstickComponent.onAxisValueChangedObservable.add(() => {
             const xValue = thumbstickComponent.axes.x;
             rotationInput = xValue;
           });
+
           thumbstickComponent.onButtonStateChangedObservable.add(() => {
             if (!thumbstickComponent.pressed) {
               rotationInput = 0;
@@ -264,20 +260,22 @@ const createScene = async () => {
   scene.onBeforeRenderObservable.add(() => {
     const camera = xr.baseExperience.camera;
 
-    // Apply movement (forward/back) from left thumbstick yValue
-    if (!isHoldingBall && (movementVector.z !== 0)) {
+    // Movement:
+    // movementVector.x controls left/right strafe
+    // movementVector.z controls forward/back
+    // Based on camera orientation
+    if (!isHoldingBall && (movementVector.x !== 0 || movementVector.z !== 0)) {
       const forward = new BABYLON.Vector3(Math.sin(camera.rotation.y), 0, Math.cos(camera.rotation.y));
       const right = new BABYLON.Vector3(-forward.z, 0, forward.x);
 
-      // Since x=0, we only move forward/back along forward direction
-      const moveDirection = forward.scale(movementVector.z);
+      const moveDirection = forward.scale(movementVector.z).add(right.scale(movementVector.x));
       moveDirection.normalize();
 
-      const speed = 0.05;
+      const speed = 0.05; // Movement speed
       camera.position.addInPlace(moveDirection.scale(speed));
     }
 
-    // Apply rotation from right thumbstick x-axis
+    // Rotation from right thumbstick
     if (rotationInput !== 0) {
       const rotationSpeed = 0.05;
       const deadzone = 0.1;
@@ -301,7 +299,7 @@ const createScene = async () => {
 const scenePromise = createScene();
 
 engine.runRenderLoop(() => {
-  scenePromise.then((scene) => {
+  scenePromise.then(scene => {
     scene.render();
   });
 });
