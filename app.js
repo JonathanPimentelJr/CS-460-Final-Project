@@ -7,12 +7,17 @@ const engine = new BABYLON.Engine(canvas, true);
 async function createScene() {
   const scene = new BABYLON.Scene(engine);
 
+  // Ammo.js physics initialization
   await Ammo();
   console.log("Ammo.js loaded");
 
-  scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), new BABYLON.AmmoJSPlugin(true));
+  scene.enablePhysics(
+    new BABYLON.Vector3(0, -9.81, 0),
+    new BABYLON.AmmoJSPlugin(true)
+  );
   console.log("Physics enabled with plugin:", scene.getPhysicsEngine().getPhysicsPluginName());
 
+  // Initialize WebXR Default Experience
   const xr = await BABYLON.WebXRDefaultExperience.CreateAsync(scene);
 
   // Lighting
@@ -23,27 +28,37 @@ async function createScene() {
   const shadowGenerator = new BABYLON.ShadowGenerator(1024, stadiumLight);
   shadowGenerator.useBlurExponentialShadowMap = true;
 
-  // Ground
+  // Ground setup
   const ground = BABYLON.MeshBuilder.CreateGround('ground', { width:30, height:15 }, scene);
   ground.position.y = 0;
   ground.physicsImpostor = new BABYLON.PhysicsImpostor(
     ground,
-    BABYLON.PhysicsImpostor.BoxImpostor,  // Box impostor for stable ground
+    BABYLON.PhysicsImpostor.BoxImpostor,
     { mass:0, restitution:0.5, friction:0.5 },
     scene
   );
 
-  // Ground material
   const courtMaterial = new BABYLON.StandardMaterial('courtMaterial', scene);
   courtMaterial.diffuseTexture = new BABYLON.Texture('assets/Court/textures/court.png', scene);
   ground.material = courtMaterial;
 
-  // Create sphere as the ball
+  // Player Box (kinematic)
+  const playerBox = BABYLON.MeshBuilder.CreateBox("playerBox", { width:1, height:2, depth:1 }, scene);
+  playerBox.position.set(0,1,0);
+  playerBox.visibility = 0.2;
+  playerBox.physicsImpostor = new BABYLON.PhysicsImpostor(
+    playerBox,
+    BABYLON.PhysicsImpostor.BoxImpostor,
+    { mass:0, restitution:0, friction:0.5 },
+    scene
+  );
+  playerBox.checkCollisions = true;
+  playerBox.isPickable = false; // not pickable to avoid blocking ray picks
+
+  // Sphere (Ball)
   const sphere = BABYLON.MeshBuilder.CreateSphere("sphere", { diameter:1 }, scene);
   sphere.scaling.scaleInPlace(0.6);
-  sphere.position = new BABYLON.Vector3(0,2,-2);
-
-  // Use BoxImpostor to give the ball a bounding box shape
+  sphere.position = new BABYLON.Vector3(0,2,-1);
   sphere.physicsImpostor = new BABYLON.PhysicsImpostor(
     sphere,
     BABYLON.PhysicsImpostor.BoxImpostor,
@@ -52,8 +67,11 @@ async function createScene() {
   );
   sphere.isPickable = true;
   sphere.checkCollisions = true;
+  const sphereMat = new BABYLON.StandardMaterial("sphereMat", scene);
+  sphereMat.diffuseColor = BABYLON.Color3.White();
+  sphere.material = sphereMat;
 
-  // Create crowd
+  // Crowd function
   const createCrowd = (position, texturePath) => {
     const crowdPlane = BABYLON.MeshBuilder.CreatePlane('crowdPlane', { width:10, height:5 }, scene);
     crowdPlane.position = position;
@@ -66,6 +84,7 @@ async function createScene() {
     return crowdPlane;
   };
 
+  // Create crowd around the court
   createCrowd(new BABYLON.Vector3(0,2.5,7.5), 'assets/Court/textures/crowd.png');
   createCrowd(new BABYLON.Vector3(10,2.5,7.5), 'assets/Court/textures/crowd.png');
   createCrowd(new BABYLON.Vector3(-10,2.5,7.5), 'assets/Court/textures/crowd.png');
@@ -102,7 +121,6 @@ async function createScene() {
   hoop1.scaling.scaleInPlace(0.02);
   hoop1.position = new BABYLON.Vector3(0,3.9,12.5);
   hoopTransform1.rotation = new BABYLON.Vector3(0, Math.PI/2, 0);
-  // Use a BoxImpostor to give hoop1 a bounding box
   hoop1.physicsImpostor = new BABYLON.PhysicsImpostor(
     hoop1,
     BABYLON.PhysicsImpostor.BoxImpostor,
@@ -128,21 +146,24 @@ async function createScene() {
   let isHoldingBall = false;
   let movementVector = new BABYLON.Vector3();
   let rotationInput = 0;
+  let score = 0; // Track score
 
-  // CheckGrab function
-  const checkGrab = (pressed, pointer, controller) => {
+  // pickPredicate to ensure we pick only the sphere
+  const pickPredicate = (mesh) => mesh.isPickable && mesh === sphere;
+
+  const checkGrab = (pressed, controller) => {
+    const ray = controller.getWorldPointerRay();
+    const pickInfo = scene.pickWithRay(ray, pickPredicate);
+    console.log("PickInfo:", pickInfo);
+
     if (pressed) {
-      const pickInfo = scene.pickWithRay(
-        new BABYLON.Ray(pointer.position, pointer.forward, 0, 10)
-      );
-      console.log("PickInfo:", pickInfo);
       if (pickInfo.hit && pickInfo.pickedMesh === sphere) {
         sphere.setParent(controller.grip);
         sphere.physicsImpostor.sleep();
         isHoldingBall = true;
         console.log("Sphere picked up");
       } else {
-        console.log("Sphere not picked, ensure sphere is visible and in front.");
+        console.log("Sphere not picked; ensure sphere is in front and no objects block the ray.");
       }
     } else {
       if (sphere.parent === controller.grip) {
@@ -171,9 +192,11 @@ async function createScene() {
       if (squeeze) {
         squeeze.onButtonStateChangedObservable.add(() => {
           if (squeeze.changes.pressed) {
-            checkGrab(squeeze.pressed, controller.pointer, controller);
+            checkGrab(squeeze.pressed, controller);
           }
         });
+      } else {
+        console.warn("No squeeze component found; consider select/trigger if needed.");
       }
     });
   });
@@ -181,15 +204,13 @@ async function createScene() {
   // Movement and rotation each frame
   scene.onBeforeRenderObservable.add(() => {
     const camera = xr.baseExperience.camera;
-
-    // Move along world axes
     const speed = 0.05;
+
     if (!isHoldingBall && (movementVector.x !== 0 || movementVector.z !== 0)) {
       camera.position.x += movementVector.x * speed;
       camera.position.z += movementVector.z * speed;
     }
 
-    // Rotation from right thumbstick
     if (rotationInput !== 0) {
       const rotationSpeed = 0.05;
       const deadzone = 0.1;
@@ -197,15 +218,18 @@ async function createScene() {
         camera.rotation.y -= rotationInput * rotationSpeed;
       }
     }
+
+    // Sync playerBox to camera
+    playerBox.position.x = camera.position.x;
+    playerBox.position.y = camera.position.y - 1; 
+    playerBox.position.z = camera.position.z;
   });
 
-  // Controller input for movement/rotation
   xr.input.onControllerAddedObservable.add((xrController) => {
     xrController.onMotionControllerInitObservable.add((motionController) => {
       const handedness = xrController.inputSource.handedness;
       console.log(`Components for ${handedness} controller:`, motionController.components);
 
-      // Left controller: full directional movement
       if (handedness === 'left') {
         const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') ||
                                     motionController.getComponent('thumbstick') ||
@@ -224,11 +248,10 @@ async function createScene() {
             }
           });
         } else {
-          console.warn('Thumbstick component not found on left controller for movement');
+          console.warn('No thumbstick on left controller for movement');
         }
       }
 
-      // Right controller: rotation
       if (handedness === 'right') {
         const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') ||
                                     motionController.getComponent('thumbstick') ||
@@ -244,7 +267,7 @@ async function createScene() {
             }
           });
         } else {
-          console.warn('Thumbstick component not found on right controller for rotation');
+          console.warn('No thumbstick on right controller for rotation');
         }
       }
     });
@@ -252,16 +275,29 @@ async function createScene() {
 
   scene.collisionsEnabled = true;
   xr.baseExperience.camera.checkCollisions = true;
-  xr.baseExperience.camera.ellipsoid = new BABYLON.Vector3(0.5, 1, 0.5);
+  xr.baseExperience.camera.ellipsoid = new BABYLON.Vector3(0.5,1,0.5);
   ground.checkCollisions = true;
+  playerBox.checkCollisions = true;
+
+  // Add Score Overlay
+  const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+  const scoreText = new BABYLON.GUI.TextBlock();
+  scoreText.text = "SCORE: 0";
+  scoreText.color = "white";
+  scoreText.fontSize = 24;
+  scoreText.textHorizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+  scoreText.textVerticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+  scoreText.top = "10px";
+  scoreText.left = "-10px";
+  advancedTexture.addControl(scoreText);
 
   return scene;
-};
+}
 
 const scenePromise = createScene();
 
 engine.runRenderLoop(() => {
-  scenePromise.then((scene) => {
+  scenePromise.then(scene => {
     scene.render();
   });
 });
