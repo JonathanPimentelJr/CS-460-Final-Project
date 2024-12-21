@@ -28,7 +28,7 @@ async function createScene() {
   ground.position.y = 0;
   ground.physicsImpostor = new BABYLON.PhysicsImpostor(
     ground,
-    BABYLON.PhysicsImpostor.BoxImpostor,
+    BABYLON.PhysicsImpostor.BoxImpostor,  // Box impostor for stable ground
     { mass:0, restitution:0.5, friction:0.5 },
     scene
   );
@@ -38,14 +38,15 @@ async function createScene() {
   courtMaterial.diffuseTexture = new BABYLON.Texture('assets/Court/textures/court.png', scene);
   ground.material = courtMaterial;
 
-  // Sphere as the ball
+  // Create sphere as the ball
   const sphere = BABYLON.MeshBuilder.CreateSphere("sphere", { diameter:1 }, scene);
   sphere.scaling.scaleInPlace(0.6);
-  // Place sphere in front of VR camera facing -Z direction
   sphere.position = new BABYLON.Vector3(0,2,-2);
+
+  // Use BoxImpostor to give the ball a bounding box shape
   sphere.physicsImpostor = new BABYLON.PhysicsImpostor(
     sphere,
-    BABYLON.PhysicsImpostor.SphereImpostor,
+    BABYLON.PhysicsImpostor.BoxImpostor,
     { mass:1, restitution:0.6, friction:0.5 },
     scene
   );
@@ -86,11 +87,11 @@ async function createScene() {
   const crowdBack3 = createCrowd(new BABYLON.Vector3(-10,2.5,-7.5), 'assets/Court/textures/crowd.png');
   crowdBack3.rotation.y = Math.PI;
 
-  // Hoops
+  // Load hoops
   const hoopResult1 = await BABYLON.SceneLoader.ImportMeshAsync('', 'assets/', 'hoop.glb', scene);
   hoopResult1.meshes.forEach(mesh => {
     const hoopMaterial = new BABYLON.StandardMaterial("hoopMaterial", scene);
-    hoopMaterial.diffuseColor = new BABYLON.Color3(1,0,0);
+    hoopMaterial.diffuseColor = new BABYLON.Color3(0,0,0);
     hoopMaterial.specularColor = new BABYLON.Color3(0,0,0);
     mesh.material = hoopMaterial;
   });
@@ -101,9 +102,10 @@ async function createScene() {
   hoop1.scaling.scaleInPlace(0.02);
   hoop1.position = new BABYLON.Vector3(0,3.9,12.5);
   hoopTransform1.rotation = new BABYLON.Vector3(0, Math.PI/2, 0);
+  // Use a BoxImpostor to give hoop1 a bounding box
   hoop1.physicsImpostor = new BABYLON.PhysicsImpostor(
     hoop1,
-    BABYLON.PhysicsImpostor.MeshImpostor,
+    BABYLON.PhysicsImpostor.BoxImpostor,
     { mass:0, restitution:0.5, friction:0.5 },
     scene
   );
@@ -127,10 +129,9 @@ async function createScene() {
   let movementVector = new BABYLON.Vector3();
   let rotationInput = 0;
 
-  // CheckGrab function: handles attaching/detaching sphere to/from controller
+  // CheckGrab function
   const checkGrab = (pressed, pointer, controller) => {
     if (pressed) {
-      // Attempt to pick up sphere
       const pickInfo = scene.pickWithRay(
         new BABYLON.Ray(pointer.position, pointer.forward, 0, 10)
       );
@@ -144,7 +145,6 @@ async function createScene() {
         console.log("Sphere not picked, ensure sphere is visible and in front.");
       }
     } else {
-      // Release the sphere if held
       if (sphere.parent === controller.grip) {
         sphere.setParent(null);
         sphere.physicsImpostor.wakeUp();
@@ -161,7 +161,7 @@ async function createScene() {
     }
   };
 
-  // Integrate code snippet from docs: using squeeze for grabbing
+  // Using squeeze component for grabbing
   xr.input.onControllerAddedObservable.add((controller) => {
     controller.onMeshLoadedObservable.addOnce((rootMesh) => {
       shadowGenerator.addShadowCaster(rootMesh, true);
@@ -171,7 +171,6 @@ async function createScene() {
       if (squeeze) {
         squeeze.onButtonStateChangedObservable.add(() => {
           if (squeeze.changes.pressed) {
-            // Use checkGrab with squeeze pressed state
             checkGrab(squeeze.pressed, controller.pointer, controller);
           }
         });
@@ -183,7 +182,7 @@ async function createScene() {
   scene.onBeforeRenderObservable.add(() => {
     const camera = xr.baseExperience.camera;
 
-    // Move in world space: forward/back = z-axis, left/right = x-axis
+    // Move along world axes
     const speed = 0.05;
     if (!isHoldingBall && (movementVector.x !== 0 || movementVector.z !== 0)) {
       camera.position.x += movementVector.x * speed;
@@ -200,23 +199,23 @@ async function createScene() {
     }
   });
 
-  // Controller input from previous logic for movement and rotation
+  // Controller input for movement/rotation
   xr.input.onControllerAddedObservable.add((xrController) => {
     xrController.onMotionControllerInitObservable.add((motionController) => {
       const handedness = xrController.inputSource.handedness;
       console.log(`Components for ${handedness} controller:`, motionController.components);
 
-      // Left controller for movement (full directional)
+      // Left controller: full directional movement
       if (handedness === 'left') {
         const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') ||
                                     motionController.getComponent('thumbstick') ||
                                     motionController.getComponent('touchpad');
         if (thumbstickComponent) {
           thumbstickComponent.onAxisValueChangedObservable.add(() => {
-            const xValue = thumbstickComponent.axes.x; 
-            const yValue = thumbstickComponent.axes.y; 
+            const xValue = thumbstickComponent.axes.x;
+            const yValue = thumbstickComponent.axes.y;
             movementVector.x = xValue;  
-            movementVector.z = -yValue;  
+            movementVector.z = yValue;  
           });
           thumbstickComponent.onButtonStateChangedObservable.add(() => {
             if (!thumbstickComponent.pressed) {
@@ -229,7 +228,7 @@ async function createScene() {
         }
       }
 
-      // Right controller for rotation (left/right)
+      // Right controller: rotation
       if (handedness === 'right') {
         const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') ||
                                     motionController.getComponent('thumbstick') ||
