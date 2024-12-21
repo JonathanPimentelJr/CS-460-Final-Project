@@ -47,7 +47,7 @@ const createScene = async () => {
   ground.physicsImpostor = new BABYLON.PhysicsImpostor(
     ground,
     BABYLON.PhysicsImpostor.BoxImpostor,
-    { mass: 0, restitution: 0.5, friction: 0.5 },
+    { mass: 0, restitution: 0.6, friction: 0.5 },
     scene
   );
 
@@ -82,7 +82,7 @@ const createScene = async () => {
   basketball.physicsImpostor = new BABYLON.PhysicsImpostor(
     basketball,
     BABYLON.PhysicsImpostor.SphereImpostor,
-    { mass: 0, restitution: 0.6, friction: 0.5 },
+    { mass: 1, restitution: 0.8, friction: 0.5 },
     scene
   );
   // Make the basketball grabbable
