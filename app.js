@@ -20,7 +20,7 @@ async function createScene() {
   // Initialize WebXR Default Experience
   const xr = await BABYLON.WebXRDefaultExperience.CreateAsync(scene);
 
-  // ----- Lighting -----
+  // Lighting
   const light = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0,1,0), scene);
   const stadiumLight = new BABYLON.PointLight('stadiumLight', new BABYLON.Vector3(0,10,0), scene);
   stadiumLight.intensity = 0.8;
@@ -28,7 +28,7 @@ async function createScene() {
   const shadowGenerator = new BABYLON.ShadowGenerator(1024, stadiumLight);
   shadowGenerator.useBlurExponentialShadowMap = true;
 
-  // ----- Ground -----
+  // Ground
   const ground = BABYLON.MeshBuilder.CreateGround('ground', { width:30, height:15 }, scene);
   ground.position.y = 0;
   ground.physicsImpostor = new BABYLON.PhysicsImpostor(
@@ -42,7 +42,7 @@ async function createScene() {
   courtMaterial.diffuseTexture = new BABYLON.Texture('assets/Court/textures/court.png', scene);
   ground.material = courtMaterial;
 
-  // ----- Player Box (Kinematic) -----
+  // Player Box (Kinematic)
   const playerBox = BABYLON.MeshBuilder.CreateBox("playerBox", { width:1, height:2, depth:1 }, scene);
   playerBox.position.set(0,1,0);
   playerBox.visibility = 0.2;
@@ -55,60 +55,51 @@ async function createScene() {
   playerBox.checkCollisions = true;
   playerBox.isPickable = false;
 
-  // ----- Sphere (Ball) -----
+  // Sphere (Ball)
   const sphere = BABYLON.MeshBuilder.CreateSphere("sphere", { diameter:1 }, scene);
   sphere.scaling.scaleInPlace(0.6);
   sphere.position = new BABYLON.Vector3(0,2,-1);
-
-  // CHANGE: Use SphereImpostor to match the actual ball shape
   sphere.physicsImpostor = new BABYLON.PhysicsImpostor(
     sphere,
-    BABYLON.PhysicsImpostor.SphereImpostor,
+    BABYLON.PhysicsImpostor.BoxImpostor,
     { mass:1, restitution:0.6, friction:0.5 },
     scene
   );
   sphere.isPickable = true;
   sphere.checkCollisions = true;
-
   const sphereMat = new BABYLON.StandardMaterial("sphereMat", scene);
   sphereMat.diffuseColor = BABYLON.Color3.White();
   sphere.material = sphereMat;
 
-  // ----- Crowd Setup (same as before) -----
+  // Create crowd function
   const createCrowd = (position, texturePath) => {
     const crowdPlane = BABYLON.MeshBuilder.CreatePlane('crowdPlane', { width:10, height:5 }, scene);
     crowdPlane.position = position;
-
     const crowdMaterial = new BABYLON.StandardMaterial('crowdMaterial', scene);
     crowdMaterial.diffuseTexture = new BABYLON.Texture(texturePath, scene);
     crowdMaterial.diffuseTexture.hasAlpha = true;
     crowdPlane.material = crowdMaterial;
-
     return crowdPlane;
   };
 
+  // Create crowd around the court
   createCrowd(new BABYLON.Vector3(0,2.5,7.5), 'assets/Court/textures/crowd.png');
   createCrowd(new BABYLON.Vector3(10,2.5,7.5), 'assets/Court/textures/crowd.png');
   createCrowd(new BABYLON.Vector3(-10,2.5,7.5), 'assets/Court/textures/crowd.png');
 
   const crowdLeft = createCrowd(new BABYLON.Vector3(15.5,2.3,0.25), 'assets/Court/textures/crowd.png');
-  crowdLeft.scaling.x = 1.5;
-  crowdLeft.rotation.y = Math.PI/2;
-
+  crowdLeft.scaling.x = 1.5; crowdLeft.rotation.y = Math.PI/2;
   const crowdRight = createCrowd(new BABYLON.Vector3(-15.5,2.3,-0.25), 'assets/Court/textures/crowd.png');
-  crowdRight.scaling.x = 1.5;
-  crowdRight.rotation.y = -Math.PI/2;
+  crowdRight.scaling.x = 1.5; crowdRight.rotation.y = -Math.PI/2;
 
   const crowdBack1 = createCrowd(new BABYLON.Vector3(0,2.5,-7.5), 'assets/Court/textures/crowd.png');
   crowdBack1.rotation.y = Math.PI;
-
   const crowdBack2 = createCrowd(new BABYLON.Vector3(10,2.5,-7.5), 'assets/Court/textures/crowd.png');
   crowdBack2.rotation.y = Math.PI;
-
   const crowdBack3 = createCrowd(new BABYLON.Vector3(-10,2.5,-7.5), 'assets/Court/textures/crowd.png');
   crowdBack3.rotation.y = Math.PI;
 
-  // ----- Hoops -----
+  // Hoops
   const hoopResult1 = await BABYLON.SceneLoader.ImportMeshAsync('', 'assets/', 'hoop.glb', scene);
   hoopResult1.meshes.forEach(mesh => {
     const hoopMaterial = new BABYLON.StandardMaterial("hoopMaterial", scene);
@@ -148,11 +139,10 @@ async function createScene() {
   let isHoldingBall = false;
   let movementVector = new BABYLON.Vector3();
   let rotationInput = 0;
+  let score = 0; // Track score if needed
 
-  // We only want to pick the sphere
   const pickPredicate = (mesh) => mesh.isPickable && mesh === sphere;
 
-  // CheckGrab function
   const checkGrab = (pressed, controller) => {
     const ray = controller.getWorldPointerRay();
     const pickInfo = scene.pickWithRay(ray, pickPredicate);
@@ -160,68 +150,58 @@ async function createScene() {
 
     if (pressed) {
       if (pickInfo.hit && pickInfo.pickedMesh === sphere) {
-        // DISABLE SPHERE PHYSICS while parented to the controller
-        sphere.physicsImpostor.sleep(); // no physics updates
         sphere.setParent(controller.grip);
+        sphere.physicsImpostor.sleep();
         isHoldingBall = true;
         console.log("Sphere picked up");
       } else {
         console.log("Sphere not picked; ensure sphere is visible and in front.");
       }
     } else {
-      // On release, re-enable physics
       if (sphere.parent === controller.grip) {
         sphere.setParent(null);
-        sphere.physicsImpostor.wakeUp(); // re-enable physics
+        sphere.physicsImpostor.wakeUp();
         isHoldingBall = false;
 
-        // Apply throw velocity
         const currentPos = controller.grip.position.clone();
         const lastPos = controller.grip['lastPosition'] || currentPos;
         controller.grip['lastPosition'] = currentPos.clone();
 
         const controllerVelocity = currentPos.subtract(lastPos);
-        // Optional: clamp velocity if needed to prevent extreme speeds
         sphere.physicsImpostor.setLinearVelocity(controllerVelocity.scale(60));
         console.log('Sphere thrown with velocity:', controllerVelocity.scale(60));
       }
     }
   };
 
-  // Use trigger instead of squeeze
+  // Use squeeze for grabbing
   xr.input.onControllerAddedObservable.add((controller) => {
     controller.onMeshLoadedObservable.addOnce((rootMesh) => {
-      // For shadows if you want them
       shadowGenerator.addShadowCaster(rootMesh, true);
     });
     controller.onMotionControllerInitObservable.add(() => {
-      // Look for "xr-standard-trigger" or "trigger"
-      const trigger = controller.motionController.getComponent("xr-standard-trigger")
-                   || controller.motionController.getComponent("trigger");
-      if (trigger) {
-        trigger.onButtonStateChangedObservable.add(() => {
-          if (trigger.changes.pressed) {
-            checkGrab(trigger.pressed, controller);
+      const squeeze = controller.motionController.getComponentOfType("squeeze");
+      if (squeeze) {
+        squeeze.onButtonStateChangedObservable.add(() => {
+          if (squeeze.changes.pressed) {
+            checkGrab(squeeze.pressed, controller);
           }
         });
       } else {
-        console.warn("No trigger component found; consider using select or another input.");
+        console.warn("No squeeze component found; consider select/trigger if needed.");
       }
     });
   });
 
-  // Movement and rotation each frame
   scene.onBeforeRenderObservable.add(() => {
     const camera = xr.baseExperience.camera;
     const speed = 0.05;
 
-    // Move camera in world space
     if (!isHoldingBall && (movementVector.x !== 0 || movementVector.z !== 0)) {
       camera.position.x += movementVector.x * speed;
       camera.position.z += movementVector.z * speed;
     }
 
-    // Rotate camera with right stick
     if (rotationInput !== 0) {
       const rotationSpeed = 0.05;
       const deadzone = 0.1;
@@ -230,23 +210,21 @@ async function createScene() {
       }
     }
 
-    // Keep player box synced with camera
+    // Sync playerBox to camera
     playerBox.position.x = camera.position.x;
-    playerBox.position.y = camera.position.y - 1;
+    playerBox.position.y = camera.position.y - 1; 
     playerBox.position.z = camera.position.z;
   });
 
-  // Controller logic for movement/rotation
   xr.input.onControllerAddedObservable.add((xrController) => {
     xrController.onMotionControllerInitObservable.add((motionController) => {
       const handedness = xrController.inputSource.handedness;
       console.log(`Components for ${handedness} controller:`, motionController.components);
 
       if (handedness === 'left') {
-        // Movement with left thumbstick
-        const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick')
-                                 || motionController.getComponent('thumbstick')
-                                 || motionController.getComponent('touchpad');
+        const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') ||
+                                    motionController.getComponent('thumbstick') ||
+                                    motionController.getComponent('touchpad');
         if (thumbstickComponent) {
           thumbstickComponent.onAxisValueChangedObservable.add(() => {
             const xValue = thumbstickComponent.axes.x;
@@ -265,11 +243,10 @@ async function createScene() {
         }
       }
 
-      // Rotation with right thumbstick
       if (handedness === 'right') {
-        const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick')
-                                 || motionController.getComponent('thumbstick')
-                                 || motionController.getComponent('touchpad');
+        const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick') ||
+                                    motionController.getComponent('thumbstick') ||
+                                    motionController.getComponent('touchpad');
         if (thumbstickComponent) {
           thumbstickComponent.onAxisValueChangedObservable.add(() => {
             const xValue = thumbstickComponent.axes.x;
@@ -293,19 +270,16 @@ async function createScene() {
   ground.checkCollisions = true;
   playerBox.checkCollisions = true;
 
-  // Example 3D panel for score text if you want to show in VR
-  const scorePanel = BABYLON.MeshBuilder.CreatePlane("scorePanel", { width:2, height:0.4 }, scene);
-  scorePanel.position.set(0, -0.4, -2);
-  scorePanel.rotation.y = Math.PI; // face the camera if plane faces +Z by default
-  scorePanel.parent = xr.baseExperience.camera;
-
-  const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateForMesh(scorePanel);
+  // Add Score Overlay (2D fullscreen UI)
+  const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
   const scoreText = new BABYLON.GUI.TextBlock();
   scoreText.text = "SCORE: 0";
   scoreText.color = "white";
-  scoreText.fontSize = 80;
-  scoreText.outlineWidth = 2;
-  scoreText.outlineColor = "black";
+  scoreText.fontSize = 24;
+  scoreText.textHorizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+  scoreText.textVerticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+  scoreText.top = "10px";
+  scoreText.left = "-10px";
   advancedTexture.addControl(scoreText);
 
   return scene;
