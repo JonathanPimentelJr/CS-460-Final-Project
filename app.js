@@ -33,6 +33,27 @@ async function createScene() {
     scene
   );
 
+
+  const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI", true, scene);
+
+  const scoreText = new BABYLON.GUI.TextBlock();
+  scoreText.text = "Score: 0"; // Initial score
+  scoreText.color = "white";
+  scoreText.fontSize = 24;
+  scoreText.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+  scoreText.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+  scoreText.paddingTop = 10;
+  scoreText.paddingLeft = 10;
+
+  advancedTexture.addControl(scoreText);
+
+  // Function to update the score
+  let score = 0;
+
+  function updateScore(newScore) {
+    scoreText.text = `Score: ${newScore}`;
+}
+
   // Ground material
   const courtMaterial = new BABYLON.StandardMaterial('courtMaterial', scene);
   courtMaterial.diffuseTexture = new BABYLON.Texture('assets/Court/textures/court.png', scene);
