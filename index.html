@@ -1,25 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>VR Freethrow Game</title>
   <style>
-    html, body {
+    html,
+    body {
       width: 100%;
       height: 100%;
       margin: 0;
       padding: 0;
-      overflow: hidden; /* Prevent scrollbars */
+      overflow: hidden;
+      /* Prevent scrollbars */
     }
+
     /* Style the canvas to fill the parent */
     #renderCanvas {
       width: 100%;
       height: 100%;
-      touch-action: none; /* Disable touch interactions that can interfere with rendering */
+      touch-action: none;
+      /* Disable touch interactions that can interfere with rendering */
     }
-
   </style>
 </head>
+
 <body>
   <canvas id="renderCanvas"></canvas>
 
@@ -27,11 +32,11 @@
   <script src="https://cdn.babylonjs.com/babylon.js"></script>
   <!-- Include Babylon.js Loaders -->
   <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
-  <!-- Include Ammo.js for Physics -->
+  <!-- Include Ammo.js for Physics (Babylon.js compatible version) -->
   <script src="https://cdn.babylonjs.com/ammo.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/ammo.js/0.0.10/ammo.js"></script>
 
   <!-- Include Your Script -->
   <script src="app.js"></script>
 </body>
+
 </html>
